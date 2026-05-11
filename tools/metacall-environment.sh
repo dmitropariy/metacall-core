@@ -706,16 +706,17 @@ sub_c(){
 			$SUDO_CMD sh -c "echo \"deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain${LINKNAME}-${LLVM_VERSION_STRING} main\" >> /etc/apt/sources.list"
 			$SUDO_CMD sh -c "echo \"deb-src http://apt.llvm.org/${CODENAME}/ llvm-toolchain${LINKNAME}-${LLVM_VERSION_STRING} main\" >> /etc/apt/sources.list"
 			$SUDO_CMD apt-get update
-			$SUDO_CMD apt-get install -y --no-install-recommends libffi-dev libclang-${LLVM_VERSION_STRING}-dev
+			$SUDO_CMD apt-get install -y --no-install-recommends libffi-dev libclang-${LLVM_VERSION_STRING}-dev tcc libtcc-dev
 		elif [ "${LINUX_DISTRO}" = "ubuntu" ]; then
-			$SUDO_CMD apt-get install -y --no-install-recommends libffi-dev libclang-${LLVM_VERSION_STRING}-dev
+			$SUDO_CMD apt-get install -y --no-install-recommends libffi-dev libclang-${LLVM_VERSION_STRING}-dev tcc libtcc-dev
 		elif [ "${LINUX_DISTRO}" = "alpine" ]; then
-			$SUDO_CMD apk add --no-cache libffi-dev
+			$SUDO_CMD apk add --no-cache libffi-dev tcc tcc-dev
 			$SUDO_CMD apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.16/main clang-libs=13.0.1-r1 clang-dev=13.0.1-r1
 		fi
 	elif [ "${OPERATIVE_SYSTEM}" = "Darwin" ]; then
 		LLVM_VERSION_STRING=17
 		brew install libffi
+		brew install tcc
 		brew install llvm@$LLVM_VERSION_STRING
 		brew link llvm@$LLVM_VERSION_STRING --force --overwrite
 		mkdir -p "$ROOT_DIR/build"
@@ -726,7 +727,7 @@ sub_c(){
 		echo "-DLibClang_CMAKE_DEBUG=ON" >> $CMAKE_CONFIG_PATH
 	elif [ "${OPERATIVE_SYSTEM}" = "FreeBSD" ]; then
 		LLVM_VERSION_STRING=19
-		$SUDO_CMD pkg install -y libffi llvm${LLVM_VERSION_STRING} gcc
+		$SUDO_CMD pkg install -y libffi llvm${LLVM_VERSION_STRING} gcc tcc
 		mkdir -p "$ROOT_DIR/build"
 		CMAKE_CONFIG_PATH="$ROOT_DIR/build/CMakeConfig.txt"
 		echo "-DLibClang_INCLUDE_DIR=/usr/local/llvm${LLVM_VERSION_STRING}/include" >> $CMAKE_CONFIG_PATH

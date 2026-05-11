@@ -21,13 +21,14 @@ jobs:
 
     - name: Configure CMake
       run: >
-        cmake -B build -G Ninja 
+        cmake -B build 
         -DCMAKE_BUILD_TYPE=Release 
         -DOPTION_BUILD_LOADERS_C=ON 
-        -DOPTION_BUILD_TESTS=ON
+        -DOPTION_BUILD_TESTS=ON 
+        -DOPTION_BUILD_DETOURS=OFF
 
     - name: Build
-      run: cmake --build build --config Release
+      run: cmake --build build --config Release -j$(nproc)
 
     - name: Run Tests
       working-directory: build

@@ -1,0 +1,36 @@
+name: Linux C Loader CI
+
+on:
+  push:
+    branches: [ "master", "main", "feature/c-loader-ci-linux" ]
+  pull_request:
+    branches: [ "master", "main", "feature/c-loader-ci-linux" ]
+
+jobs:
+  build-and-test:
+    name: Build & Test C Loader (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install System Dependencies
+      run: |
+        sudo bash tools/metacall-environment.sh release base c
+
+    - name: Configure CMake
+      run: >
+        cmake -B build -G Ninja 
+        -DCMAKE_BUILD_TYPE=Release 
+        -DOPTION_BUILD_LOADERS_C=ON 
+        -DOPTION_BUILD_TESTS=ON
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Run Tests
+      working-directory: build
+      run: |
+        export LD_LIBRARY_PATH=$PWD
+        ctest --output-on-failure -C Release

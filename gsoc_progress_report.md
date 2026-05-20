@@ -569,3 +569,178 @@ The following deliverables were completed successfully:
 ✓ Created tools/metacall-installer.ps1 installer script
 ✓ c_loader.dll successfully built on Windows x64 with MSVC (58,880 bytes)
 The implementation provides Windows support for the MetaCall C Loader and ensures continuous verification through the existing CI pipeline.
+
+
+# Progress Report: Windows C Loader Support and CI Configuration for MetaCall
+ 
+## 1. Objective and Context
+ 
+As part of the Cross-Platform Support project for the `C Loader` implementation in **MetaCall**, work was completed to provide support for the Windows platform and integrate automated testing through GitHub Actions.
+ 
+The primary objective was to ensure that the `C Loader` could be properly built on Windows with MSVC, integrating all required dependencies: `libffi`, `libclang`, and `TCC`.
+ 
+The expected result of the implementation is support for execution of C files through MetaCall:
+ 
+```
+metacall hello.c
+```
+ 
+---
+ 
+## 2. Tasks Completed by Mariia Ryzhova 
+ 
+### 2.1. CMake Dependency Discovery for Windows
+ 
+Updated three CMake find-modules to support Windows search paths. Previously, all three files contained only Linux-specific paths.
+ 
+**FindLibFFI.cmake**
+ 
+- Added `elseif(WIN32)` block with Windows search paths.
+- Before this change, the file contained only `# TODO: Windows?` with no implementation.
+- Added search via `LIBFFI_ROOT` environment variable, vcpkg, Chocolatey, Scoop, and `C:/libffi`.
+**FindLibTCC.cmake**
+ 
+- Added `if(WIN32)` block for Windows-specific TCC discovery.
+- On Windows, TCC is distributed as `libtcc.dll` with import library `libtcc.lib`, different from Linux `libtcc.so`.
+- Added search via `TCC_ROOT` environment variable and standard Windows locations.
+- Added `find_file(LIBTCC_DLL ...)` to locate the runtime DLL for post-build copy.
+**FindLibClang.cmake**
+ 
+- Added `if(WIN32)` block for Windows-specific LLVM/libclang discovery.
+- LLVM on Windows installs to `C:/Program Files/LLVM`, completely different from Linux paths.
+- Added search via `LLVM_ROOT` environment variable, vcpkg, Chocolatey, and Scoop.
+- Applied a critical fix: when CMake found `include/clang-c/`, it incorrectly set that as `LibClang_INCLUDE_DIR`. Source code uses `#include <clang-c/Index.h>`, which requires the parent `include/` directory. Without this fix, compilation failed with `clang-c/CXString.h: No such file or directory`.
+### 2.2. Fix of Existing Bug in InstallLibTCC.cmake
+ 
+When TCC is not found, `InstallLibTCC.cmake` automatically builds it from source using `ExternalProject_Add`. This mechanism had three bugs on Windows with MSVC:
+ 
+- **Configure step**: `CONFIGURE_COMMAND` was empty. CMake tried to run cmake configure by default, but TCC has no `CMakeLists.txt`. Fixed by replacing with an explicit echo command to skip configure.
+- **Build step**: `build-tcc.bat` uses relative paths and expects to run from inside `win32/` directory. CMake ran it from the source root, causing `libtcc.c: No such file or directory`. Fixed by prepending `cd win32 &&` before the bat call.
+- **Install step**: `INSTALL_COMMAND` was also empty, causing the same cmake default behavior issue. Fixed by replacing with an explicit echo command.
+### 2.3. Build Helper Script
+ 
+Created `cmake/tcc_build_msvc.bat` to handle cases where `build-tcc.bat` fails when the install path contains spaces. The `xcopy` command inside `build-tcc.bat` does not handle paths with spaces correctly.
+ 
+The script:
+ 
+- Accepts source and destination directories as properly quoted arguments.
+- Runs `build-tcc.bat` from the correct directory.
+- Copies results manually with correct path escaping.
+- Always returns `exit /B 0` to avoid blocking the CMake build on non-critical copy errors.
+### 2.4. GitHub Actions CI Pipeline
+ 
+Updated `.github/workflows/windows-test.yml` to enable the C Loader in the Windows CI pipeline.
+ 
+Before this change, the C Loader was commented out:
+ 
+```
+# netcore5 java c cobol rust
+```
+ 
+After the change, `c` was added to active build options:
+ 
+```
+file c # netcore5 cobol rust
+```
+ 
+The CI pipeline now tests the C Loader automatically on every pull request on `windows-2022` and `windows-2025`.
+ 
+### 2.5. Windows Installer Script
+ 
+Created `tools/metacall-installer.ps1` to allow developers to install all C Loader dependencies with a single command.
+ 
+The script installs:
+ 
+- LLVM via Chocolatey (`choco install llvm`)
+- libffi via vcpkg (`vcpkg install libffi:x64-windows`)
+- TCC built from source (`metacall/tinycc`)
+After installation, the script sets the required environment variables so that CMake can automatically find all dependencies:
+ 
+```
+LLVM_ROOT   = C:\Program Files\LLVM
+TCC_ROOT    = C:\mc_out
+LIBFFI_ROOT = C:\vcpkg\installed\x64-windows
+```
+ 
+### 2.6. Pull Request and Version Control Workflow
+ 
+A dedicated feature branch was created:
+ 
+```
+git checkout -b feature/windows-c-loader
+```
+ 
+The implementation included three commits:
+ 
+**Commit 1** — `fix: add Windows/MSVC support for C Loader dependencies`
+ 
+- Windows search paths in all three `Find*.cmake` files
+- Bug fixes in `InstallLibTCC.cmake`
+- New helper script `cmake/tcc_build_msvc.bat`
+**Commit 2** — `ci: enable C Loader in Windows CI pipeline`
+ 
+- Enabled `c` option in `windows-test.yml`
+**Commit 3** — `feat: add Windows installer script for C Loader dependencies`
+ 
+- Created `tools/metacall-installer.ps1`
+After implementation, changes were pushed and a Pull Request was opened:
+ 
+```
+https://github.com/metacall/core/pull/780
+```
+ 
+---
+ 
+## 3. Testing Results
+ 
+### Build verification
+ 
+CMake configuration confirmed all three dependencies were found:
+ 
+```
+-- Found LibFFI: C:/vcpkg/installed/x64-windows/lib/ffi.lib
+-- Installing LibTCC 4fccaf61241a5eb72b0777b3a44bd7abbea48604
+-- Found LibClang: C:/Program Files/LLVM/lib/libclang.lib
+-- Plugin c_loader
+```
+ 
+Build completed successfully on Windows x64 with MSVC 19.42:
+ 
+```
+c_loader.vcxproj -> build\Release\c_loader.dll
+```
+ 
+### Environment tested
+ 
+| Component | Version |
+|---|---|
+| OS | Windows 10 x64 |
+| Compiler | MSVC 19.42 (Visual Studio 2022) |
+| CMake | 4.3.1 |
+| LLVM / libclang | 22.1.0 |
+| libffi | 3.5.2 (vcpkg) |
+| TCC | metacall/tinycc @ 4fccaf6 |
+ 
+---
+ 
+## 4. Result
+ 
+The following deliverables were completed successfully:
+ 
+✓ Windows search paths added to `FindLibFFI.cmake`
+ 
+✓ Windows search paths added to `FindLibTCC.cmake`
+ 
+✓ Windows search paths added to `FindLibClang.cmake`
+ 
+✓ Fixed existing bug in `InstallLibTCC.cmake` (configure, build, and install steps for MSVC)
+ 
+✓ Created `cmake/tcc_build_msvc.bat` helper script
+ 
+✓ Enabled C Loader in `.github/workflows/windows-test.yml`
+ 
+✓ Created `tools/metacall-installer.ps1` installer script
+ 
+✓ `c_loader.dll` successfully built on Windows x64 with MSVC (58,880 bytes)
+ 
+The implementation provides Windows support for the MetaCall C Loader and ensures continuous verification through the existing CI pipeline.
